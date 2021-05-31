@@ -1,3 +1,4 @@
 build/
+buildV1/
 node_modules/
 .env

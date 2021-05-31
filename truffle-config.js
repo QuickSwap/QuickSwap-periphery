@@ -18,7 +18,7 @@ module.exports = {
       skipDryRun: true
     },
     matic: {
-      provider: () => new HDWalletProvider(process.env.PK, `https://rpc-mainnet.matic.network`),
+      provider: () => new HDWalletProvider(process.env.PK_QUICK, `https://rpc-mainnet.matic.network`),
       network_id: 137,
       gasPrice: 1000000000,
       confirmations: 2,
