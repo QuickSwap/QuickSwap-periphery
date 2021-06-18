@@ -348,11 +348,11 @@ contract QuickConverter is Ownable {
     //     As the size of the DragonLair has grown, this requires large amounts of funds and isn't super profitable anymore
     //     The onlyEOA modifier prevents this being done with a flash loan.
     // C1 - C24: OK
-    function convert(address token0, address token1) external onlyEOA() {
-        _convert(token0, token1);
+    function convert(IUniswapV2Pair pair) external onlyEOA() {
+        _convert(pair);
     }
 
-    function burnPair(address token0, address token1) external onlyEOA() {
+    /*function burnPair(address token0, address token1) external onlyEOA() {
         IUniswapV2Pair pair = IUniswapV2Pair(factory.getPair(token0, token1));
         require(address(pair) != address(0), "QuickConverter: Invalid pair");
         // balanceOf: S1 - S4: OK
@@ -363,9 +363,9 @@ contract QuickConverter is Ownable {
         );
         // X1 - X5: OK
         (uint256 amount0, uint256 amount1) = pair.burn(address(this));
-    }
+    }*/
 
-    function convertTokenToQuick(address token) external onlyEOA() {
+    /*function convertTokenToQuick(address token) external onlyEOA() {
         uint256 balance = IERC20(token).balanceOf(address(this));
 
         if (balance > 0) {
@@ -386,29 +386,30 @@ contract QuickConverter is Ownable {
                 amountQUICK    
             );
         }
-    }
+    }*/
 
     // F1 - F10: OK, see convert
     // C1 - C24: OK
     // C3: Loop is under control of the caller
     function convertMultiple(
-        address[] calldata token0,
-        address[] calldata token1
+        IUniswapV2Pair[] calldata pairs,
     ) external onlyEOA() {
         // TODO: This can be optimized a fair bit, but this is safer and simpler for now
-        uint256 len = token0.length;
+        uint256 len = pairs.length;
         for (uint256 i = 0; i < len; i++) {
-            _convert(token0[i], token1[i]);
+            _convert(pairs[i]);
         }
     }
 
     // F1 - F10: OK
     // C1- C24: OK
-    function _convert(address token0, address token1) internal {
+    function _convert(IUniswapV2Pair pair) internal {
         // Interactions
         // S1 - S4: OK
-        IUniswapV2Pair pair = IUniswapV2Pair(factory.getPair(token0, token1));
-        require(address(pair) != address(0), "QuickConverter: Invalid pair");
+        address token0 = pair.token0();
+        address token1 = pair.token1();
+        require(address(token0) != address(0), "QuickConverter: Invalid pair");
+        require(address(token1) != address(0), "QuickConverter: Invalid pair");
         // balanceOf: S1 - S4: OK
         // transfer: X1 - X5: OK
         IERC20(address(pair)).safeTransfer(
@@ -417,9 +418,9 @@ contract QuickConverter is Ownable {
         );
         // X1 - X5: OK
         (uint256 amount0, uint256 amount1) = pair.burn(address(this));
-        if (token0 != pair.token0()) {
+        /*if (token0 != pair.token0()) {
             (amount0, amount1) = (amount1, amount0);
-        }
+        }*/
 
         if (amount0 > 0 || amount1 > 0) {
             _convertStep(token0, token1, amount0, amount1);
