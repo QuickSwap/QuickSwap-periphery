@@ -340,41 +340,6 @@ contract QuickConverter is Ownable {
         _convert(token0, token1);
     }
 
-    function burnPair(address token0, address token1) external onlyEOA() {
-        IUniswapV2Pair pair = IUniswapV2Pair(factory.getPair(token0, token1));
-        require(address(pair) != address(0), "QuickConverter: Invalid pair");
-        // balanceOf: S1 - S4: OK
-        // transfer: X1 - X5: OK
-        IERC20(address(pair)).safeTransfer(
-            address(pair),
-            pair.balanceOf(address(this))
-        );
-        // X1 - X5: OK
-        (uint256 amount0, uint256 amount1) = pair.burn(address(this));
-    }
-
-    function convertTokenToQuick(address token) external onlyEOA() {
-        uint256 balance = IERC20(token).balanceOf(address(this));
-
-        if (balance > 0) {
-            _convertStep(token, token, balance, 0);
-
-            uint256 amountQUICK = IERC20(quick).balanceOf(address(this));
-
-            uint256 dragonLairShare = amountQUICK.mul(80).div(100);
-            uint256 treasuryShare = amountQUICK.sub(dragonLairShare);
-            IERC20(quick).safeTransfer(dragonLair, dragonLairShare);
-            IERC20(quick).safeTransfer(treasury, treasuryShare);
-            emit LogConvert(
-                msg.sender,
-                token,
-                token,
-                balance,
-                balance,
-                amountQUICK    
-            );
-        }
-    }
 
     // F1 - F10: OK, see convert
     // C1 - C24: OK
