@@ -10,7 +10,7 @@ import './libraries/EIP712MetaTransaction.sol';
 import './interfaces/IERC20.sol';
 import './interfaces/IWETH.sol';
 
-contract UniswapV2Router02 is IUniswapV2Router02, EIP712MetaTransaction('QUICKSWAP_ROUTER_V2', '2') {
+contract QuickSwapRouter is IUniswapV2Router02, EIP712MetaTransaction('QUICKSWAP_ROUTER_V2', '2') {
     using SafeMath for uint;
 
     address public immutable override factory;

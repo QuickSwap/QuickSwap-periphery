@@ -24,7 +24,7 @@ contract EIP712MetaTransaction is EIP712Base {
 
     constructor(string memory name, string memory version) public EIP712Base(name, version) {}
 
-    function convertBytesToBytes4(bytes memory inBytes) internal returns (bytes4 outBytes4) {
+    function convertBytesToBytes4(bytes memory inBytes) internal pure returns (bytes4 outBytes4) {
         if (inBytes.length == 0) {
             return 0x0;
         }
