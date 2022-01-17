@@ -15,6 +15,10 @@ import UniswapV2Router01 from '../../build/UniswapV2Router01.json'
 import UniswapV2Migrator from '../../build/UniswapV2Migrator.json'
 import UniswapV2Router02 from '../../build/UniswapV2Router02.json'
 import RouterEventEmitter from '../../build/RouterEventEmitter.json'
+import StakingRewards from '../../build/StakingRewards.json'
+import StakingRewardsFactory from '../../build/StakingRewardsFactory.json'
+import LPStaker from '../../build/LPStaker.json'
+import QuickSwapLiquidityRouter from '../../build/QuickSwapLiquidityRouter.json'
 
 const overrides = {
   gasLimit: 9999999
@@ -23,6 +27,7 @@ const overrides = {
 interface V2Fixture {
   token0: Contract
   token1: Contract
+  rewardToken: Contract
   WETH: Contract
   WETHPartner: Contract
   factoryV1: Contract
@@ -35,12 +40,16 @@ interface V2Fixture {
   WETHExchangeV1: Contract
   pair: Contract
   WETHPair: Contract
+  stakingRewards: Contract
+  quickSwapLiquidityRouter: Contract
+  lpStakerContract: Contract
 }
 
 export async function v2Fixture(provider: Web3Provider, [wallet]: Wallet[]): Promise<V2Fixture> {
   // deploy tokens
   const tokenA = await deployContract(wallet, ERC20, [expandTo18Decimals(10000)])
   const tokenB = await deployContract(wallet, ERC20, [expandTo18Decimals(10000)])
+  const rewardToken = await deployContract(wallet, ERC20, [expandTo18Decimals(1000000)])
   const WETH = await deployContract(wallet, WETH9)
   const WETHPartner = await deployContract(wallet, ERC20, [expandTo18Decimals(10000)])
 
@@ -51,9 +60,18 @@ export async function v2Fixture(provider: Web3Provider, [wallet]: Wallet[]): Pro
   // deploy V2
   const factoryV2 = await deployContract(wallet, UniswapV2Factory, [wallet.address])
 
+  const rewardAmount = expandTo18Decimals(10000);
+  const duration = 86400;
+  const genesis = 1641907057;
+
+  const stakingRewardsFactory = await deployContract(wallet, StakingRewardsFactory, [rewardToken.address, genesis], overrides);
+  
+  const lpStakerContract =  await deployContract(wallet, LPStaker, [stakingRewardsFactory.address], overrides)
+
   // deploy routers
   const router01 = await deployContract(wallet, UniswapV2Router01, [factoryV2.address, WETH.address], overrides)
   const router02 = await deployContract(wallet, UniswapV2Router02, [factoryV2.address, WETH.address], overrides)
+  const quickSwapLiquidityRouter = await deployContract(wallet, QuickSwapLiquidityRouter,[factoryV2.address, WETH.address, lpStakerContract.address], overrides)
 
   // event emitter for testing
   const routerEventEmitter = await deployContract(wallet, RouterEventEmitter, [])
@@ -81,9 +99,17 @@ export async function v2Fixture(provider: Web3Provider, [wallet]: Wallet[]): Pro
   const WETHPairAddress = await factoryV2.getPair(WETH.address, WETHPartner.address)
   const WETHPair = new Contract(WETHPairAddress, JSON.stringify(IUniswapV2Pair.abi), provider).connect(wallet)
 
+  await stakingRewardsFactory.deploy(pair.address, rewardAmount, duration);
+  const stakingRewardsInfo = await stakingRewardsFactory.stakingRewardsInfoByStakingToken(pair.address);
+
+  await rewardToken.transfer(stakingRewardsFactory.address, rewardAmount)
+  await stakingRewardsFactory.notifyRewardAmounts();
+  const stakingRewards = new Contract(stakingRewardsInfo.stakingRewards, JSON.stringify(StakingRewards.abi), provider).connect(wallet)
+
   return {
     token0,
     token1,
+    rewardToken,
     WETH,
     WETHPartner,
     factoryV1,
@@ -95,6 +121,9 @@ export async function v2Fixture(provider: Web3Provider, [wallet]: Wallet[]): Pro
     migrator,
     WETHExchangeV1,
     pair,
-    WETHPair
+    WETHPair,
+    stakingRewards,
+    quickSwapLiquidityRouter,
+    lpStakerContract
   }
 }

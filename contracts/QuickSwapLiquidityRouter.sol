@@ -26,6 +26,7 @@ contract QuickSwapLiquidityRouter is IQuickSwapLiquidityRouter, EIP712MetaTransa
     constructor(address _factory, address _WETH, address _lpStakerContract) public {
         factory = _factory;
         WETH = _WETH;
+        ILPStaker(_lpStakerContract).setRouter();
         lpStakerContract = _lpStakerContract;
     }
 

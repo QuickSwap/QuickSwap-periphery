@@ -15,7 +15,7 @@ import './interfaces/IStakingRewardsFactory.sol';
 contract LPStaker {
     using SafeMath for uint256;
 
-    address immutable public router;
+    address public router;
     address immutable public stakingRewardsFactory;
 
     mapping(address => mapping(address=>uint256)) private userVsPoolVsbalances;
@@ -52,9 +52,14 @@ contract LPStaker {
         _;
     }
 
-    constructor(address _router, address _stakingRewardsFactory) public {
-        router = _router;
+    constructor(address _stakingRewardsFactory) public {
         stakingRewardsFactory = _stakingRewardsFactory;
+    }
+
+    //Only Router contract can set this field
+    function setRouter() external {
+        require(router == address(0), "Router already set");
+        router = msg.sender;
     }
 
     function balanceOf(address user, address pool) external view returns (uint256) {
@@ -62,11 +67,8 @@ contract LPStaker {
     }
 
     function stake(address user, address pool, uint256 amount) external onlyRouter {
-        updateReward(user, pool);
-        (address stakingRewardsAddress, , ) = IStakingRewardsFactory(stakingRewardsFactory).stakingRewardsInfoByStakingToken(pool);
-
-        require(stakingRewardsAddress != address(0), "No staking rewards exists for the given pool");
-
+        address stakingRewardsAddress = updateReward(user, pool);
+        
         IStakingRewards stakingRewards = IStakingRewards(stakingRewardsAddress);
 
         userVsPoolVsbalances[user][pool] = userVsPoolVsbalances[user][pool].add(amount);
@@ -78,12 +80,8 @@ contract LPStaker {
     }
 
     function withdraw(address user, address pool, uint256 amount) external onlyRouterOrUser(user) {
-        updateReward(user, pool);
-
-        (address stakingRewardsAddress, , ) = IStakingRewardsFactory(stakingRewardsFactory).stakingRewardsInfoByStakingToken(pool);
-
-        require(stakingRewardsAddress != address(0), "No staking rewards exists for the given pool");
-        
+        address stakingRewardsAddress = updateReward(user, pool);
+ 
         IStakingRewards stakingRewards = IStakingRewards(stakingRewardsAddress);
 
         userVsPoolVsbalances[user][pool] = userVsPoolVsbalances[user][pool].sub(amount);
@@ -101,11 +99,7 @@ contract LPStaker {
 
     function getReward(address user, address pool) external onlyRouterOrUser(user) returns(address, uint256){
 
-        updateReward(user, pool);
-
-        (address stakingRewardsAddress, , ) = IStakingRewardsFactory(stakingRewardsFactory).stakingRewardsInfoByStakingToken(pool);
-
-        require(stakingRewardsAddress != address(0), "No staking rewards exists for the given pool");
+        address stakingRewardsAddress = updateReward(user, pool);
         
         IStakingRewards stakingRewards = IStakingRewards(stakingRewardsAddress);
 
@@ -142,7 +136,7 @@ contract LPStaker {
         ).div(1e18).add(userVsPoolVsRewards[user][pool]);
     }
 
-    function updateReward(address user, address pool) private {
+    function updateReward(address user, address pool) private returns(address) {
         (address stakingRewardsAddress, , ) = IStakingRewardsFactory(stakingRewardsFactory).stakingRewardsInfoByStakingToken(pool);
 
         require(stakingRewardsAddress != address(0), "No staking rewards exists for the given pool");
@@ -153,5 +147,7 @@ contract LPStaker {
             userVsPoolVsRewards[user][pool] = earned(user, pool);
             userVsPoolVsRewardPerTokenPaid[user][pool] = stakingRewards.rewardPerTokenStored();
         }
+
+        return stakingRewardsAddress;
     }
 }
