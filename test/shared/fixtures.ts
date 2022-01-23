@@ -41,6 +41,7 @@ interface V2Fixture {
   pair: Contract
   WETHPair: Contract
   stakingRewards: Contract
+  stakingRewardsEth: Contract
   quickSwapLiquidityRouter: Contract
   lpStakerContract: Contract
 }
@@ -106,6 +107,13 @@ export async function v2Fixture(provider: Web3Provider, [wallet]: Wallet[]): Pro
   await stakingRewardsFactory.notifyRewardAmounts();
   const stakingRewards = new Contract(stakingRewardsInfo.stakingRewards, JSON.stringify(StakingRewards.abi), provider).connect(wallet)
 
+  await stakingRewardsFactory.deploy(WETHPair.address, rewardAmount, duration);
+  const stakingRewardsInfoEth = await stakingRewardsFactory.stakingRewardsInfoByStakingToken(WETHPair.address);
+
+  await rewardToken.transfer(stakingRewardsFactory.address, rewardAmount)
+  await stakingRewardsFactory.notifyRewardAmounts();
+  const stakingRewardsEth = new Contract(stakingRewardsInfoEth.stakingRewards, JSON.stringify(StakingRewards.abi), provider).connect(wallet)
+
   return {
     token0,
     token1,
@@ -123,6 +131,7 @@ export async function v2Fixture(provider: Web3Provider, [wallet]: Wallet[]): Pro
     pair,
     WETHPair,
     stakingRewards,
+    stakingRewardsEth,
     quickSwapLiquidityRouter,
     lpStakerContract
   }

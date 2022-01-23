@@ -39,6 +39,8 @@ describe('QuickSwapLiquidityRouter', () => {
     let routerEventEmitter: Contract
     let lpStakerContract: Contract
     let stakingRewards: Contract
+    let stakingRewardsEth: Contract
+    let rewardToken: Contract
     beforeEach(async function() {
       const fixture = await loadFixture(v2Fixture)
       token0 = fixture.token0
@@ -47,6 +49,8 @@ describe('QuickSwapLiquidityRouter', () => {
       WETHPartner = fixture.WETHPartner
       lpStakerContract = fixture.lpStakerContract
       stakingRewards = fixture.stakingRewards
+      stakingRewardsEth = fixture.stakingRewardsEth
+      rewardToken = fixture.rewardToken
       factory = fixture.factoryV2
       router = {
         [RouterVersion.QuickSwapLiquidityRouter]: fixture.quickSwapLiquidityRouter
@@ -189,7 +193,7 @@ describe('QuickSwapLiquidityRouter', () => {
         const WETHPairToken0 = await WETHPair.token0()
         await WETHPartner.approve(router.address, MaxUint256)
         await expect(
-          router.addLiquidityETH(
+          router.addAndStakeLiquidityETH(
             WETHPartner.address,
             WETHPartnerAmount,
             WETHPartnerAmount,
@@ -202,7 +206,7 @@ describe('QuickSwapLiquidityRouter', () => {
           .to.emit(WETHPair, 'Transfer')
           .withArgs(AddressZero, AddressZero, MINIMUM_LIQUIDITY)
           .to.emit(WETHPair, 'Transfer')
-          .withArgs(AddressZero, wallet.address, expectedLiquidity.sub(MINIMUM_LIQUIDITY))
+          .withArgs(AddressZero, lpStakerContract.address, expectedLiquidity.sub(MINIMUM_LIQUIDITY))
           .to.emit(WETHPair, 'Sync')
           .withArgs(
             WETHPairToken0 === WETHPartner.address ? WETHPartnerAmount : ETHAmount,
@@ -214,8 +218,14 @@ describe('QuickSwapLiquidityRouter', () => {
             WETHPairToken0 === WETHPartner.address ? WETHPartnerAmount : ETHAmount,
             WETHPairToken0 === WETHPartner.address ? ETHAmount : WETHPartnerAmount
           )
+          .to.emit(WETHPair, 'Transfer')
+          .withArgs(lpStakerContract.address, stakingRewardsEth.address, expectedLiquidity.sub(MINIMUM_LIQUIDITY))
+          .to.emit(lpStakerContract, 'LPStaked')
+          .withArgs(wallet.address, WETHPair.address, expectedLiquidity.sub(MINIMUM_LIQUIDITY))
+          .to.emit(stakingRewardsEth, 'Staked')
+          .withArgs(lpStakerContract.address, expectedLiquidity.sub(MINIMUM_LIQUIDITY))
 
-        expect(await WETHPair.balanceOf(wallet.address)).to.eq(expectedLiquidity.sub(MINIMUM_LIQUIDITY))
+        expect(await WETHPair.balanceOf(stakingRewardsEth.address)).to.eq(expectedLiquidity.sub(MINIMUM_LIQUIDITY))
       })
 
       async function addLiquidity(token0Amount: BigNumber, token1Amount: BigNumber) {
@@ -223,6 +233,7 @@ describe('QuickSwapLiquidityRouter', () => {
         await token1.transfer(pair.address, token1Amount)
         await pair.mint(wallet.address, overrides)
       }
+
       it('removeLiquidity', async () => {
         const token0Amount = expandTo18Decimals(1)
         const token1Amount = expandTo18Decimals(4)
@@ -261,6 +272,23 @@ describe('QuickSwapLiquidityRouter', () => {
         expect(await token0.balanceOf(wallet.address)).to.eq(totalSupplyToken0.sub(500))
         expect(await token1.balanceOf(wallet.address)).to.eq(totalSupplyToken1.sub(2000))
       })
+
+      async function addAndStakeLiquidity(token0Amount: BigNumber, token1Amount: BigNumber) {
+
+        await token0.approve(router.address, MaxUint256)
+        await token1.approve(router.address, MaxUint256)
+        const tx = await router.addAndStakeLiquidity(
+          token0.address,
+          token1.address,
+          token0Amount,
+          token1Amount,
+          0,
+          0,
+          wallet.address,
+          MaxUint256,
+          overrides
+        )
+      }
 
       it('removeLiquidityETH', async () => {
         const WETHPartnerAmount = expandTo18Decimals(1)
@@ -306,6 +334,66 @@ describe('QuickSwapLiquidityRouter', () => {
             WETHPairToken0 === WETHPartner.address ? ETHAmount.sub(2000) : WETHPartnerAmount.sub(500),
             router.address
           )
+
+        expect(await WETHPair.balanceOf(wallet.address)).to.eq(0)
+        const totalSupplyWETHPartner = await WETHPartner.totalSupply()
+        const totalSupplyWETH = await WETH.totalSupply()
+        expect(await WETHPartner.balanceOf(wallet.address)).to.eq(totalSupplyWETHPartner.sub(500))
+        expect(await WETH.balanceOf(wallet.address)).to.eq(totalSupplyWETH.sub(2000))
+      })
+
+      it('unstakeAndRemoveLiquidityETH', async () => {
+        const WETHPartnerAmount = expandTo18Decimals(1)
+        const ETHAmount = expandTo18Decimals(4)
+
+        await WETHPartner.approve(router.address, MaxUint256)
+        await router.addAndStakeLiquidityETH(
+          WETHPartner.address,
+          WETHPartnerAmount,
+          WETHPartnerAmount,
+          ETHAmount,
+          wallet.address,
+          MaxUint256,
+          { ...overrides, value: ETHAmount }
+        )
+
+        const expectedLiquidity = expandTo18Decimals(2)
+        const WETHPairToken0 = await WETHPair.token0()
+        await expect(
+          router.unstakeAndRemoveLiquidityETH(
+            WETHPartner.address,
+            expectedLiquidity.sub(MINIMUM_LIQUIDITY),
+            0,
+            0,
+            wallet.address,
+            MaxUint256,
+            overrides
+          )
+        )
+          .to.emit(WETHPair, 'Transfer')
+          .withArgs(router.address, WETHPair.address, expectedLiquidity.sub(MINIMUM_LIQUIDITY))
+          .to.emit(WETHPair, 'Transfer')
+          .withArgs(WETHPair.address, AddressZero, expectedLiquidity.sub(MINIMUM_LIQUIDITY))
+          .to.emit(WETH, 'Transfer')
+          .withArgs(WETHPair.address, router.address, ETHAmount.sub(2000))
+          .to.emit(WETHPartner, 'Transfer')
+          .withArgs(WETHPair.address, router.address, WETHPartnerAmount.sub(500))
+          .to.emit(WETHPartner, 'Transfer')
+          .withArgs(router.address, wallet.address, WETHPartnerAmount.sub(500))
+          .to.emit(WETHPair, 'Sync')
+          .withArgs(
+            WETHPairToken0 === WETHPartner.address ? 500 : 2000,
+            WETHPairToken0 === WETHPartner.address ? 2000 : 500
+          )
+          .to.emit(WETHPair, 'Burn')
+          .withArgs(
+            router.address,
+            WETHPairToken0 === WETHPartner.address ? WETHPartnerAmount.sub(500) : ETHAmount.sub(2000),
+            WETHPairToken0 === WETHPartner.address ? ETHAmount.sub(2000) : WETHPartnerAmount.sub(500),
+            router.address
+          )
+          .to.emit(lpStakerContract, 'LPWithdrawn')
+          .withArgs(wallet.address, WETHPair.address, expectedLiquidity.sub(MINIMUM_LIQUIDITY))
 
         expect(await WETHPair.balanceOf(wallet.address)).to.eq(0)
         const totalSupplyWETHPartner = await WETHPartner.totalSupply()
