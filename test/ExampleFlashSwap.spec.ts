@@ -4,8 +4,8 @@ import { MaxUint256 } from 'ethers/constants'
 import { BigNumber, bigNumberify, defaultAbiCoder, formatEther } from 'ethers/utils'
 import { solidity, MockProvider, createFixtureLoader, deployContract } from 'ethereum-waffle'
 
-import { expandTo18Decimals } from './shared/utilities'
-import { v2Fixture } from './shared/fixtures'
+import { expandTo18Decimals } from '../test/shared/utilities'
+import { v2Fixture } from '../test/shared/fixtures'
 
 import ExampleFlashSwap from '../build/ExampleFlashSwap.json'
 

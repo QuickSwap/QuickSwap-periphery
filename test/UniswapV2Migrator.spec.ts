@@ -4,8 +4,8 @@ import { AddressZero, MaxUint256 } from 'ethers/constants'
 import { bigNumberify } from 'ethers/utils'
 import { solidity, MockProvider, createFixtureLoader } from 'ethereum-waffle'
 
-import { v2Fixture } from './shared/fixtures'
-import { expandTo18Decimals, MINIMUM_LIQUIDITY } from './shared/utilities'
+import { v2Fixture } from '../test/shared/fixtures'
+import { expandTo18Decimals, MINIMUM_LIQUIDITY } from '../test/shared/utilities'
 
 chai.use(solidity)
 
